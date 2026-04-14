@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calcolatore Professionale</title>
+
+<style>
+body { font-family: Arial; padding: 15px; background: #f4f4f4; }
+.container { background: white; padding: 15px; border-radius: 10px; }
+input { width:100%; padding:8px; margin:5px 0; }
+button { width:100%; padding:10px; margin-top:5px; background:#2c7be5; color:white; border:none; }
+.room, .wall { border:1px solid #ddd; padding:10px; margin-top:10px; border-radius:8px;}
+.small-btn { background:#28a745; }
+.total-box { background:#e9f3ff; padding:10px; margin-top:10px; }
+</style>
+
+</head>
+<body>
+
+<div class="container">
+
+<h2>Calcolatore Professionale</h2>
+
+<h3>Gestione lavori</h3>
+<input type="text" id="nomeLavoro" placeholder="Nome lavoro">
+<button onclick="salvaLavoro()">💾 Salva</button>
+<button onclick="caricaLavoro()">📂 Carica</button>
+<select id="listaLavori"></select>
+
+<hr>
+
+<button onclick="aggiungiStanza()">+ Aggiungi Stanza</button>
+
+<div id="stanze"></div>
+
+<div class="total-box">
+<h3>Totale Generale</h3>
+<div id="totaleGenerale">0 m²</div>
+</div>
+
+</div>
+
+<script>
+
+let numeroStanze = 0;
+
+function parseInput(el){
+    let val = el.value.replace(',', '.');
+    let num = parseFloat(val);
+    return isNaN(num) ? 0 : num;
+}
+
+function aggiungiStanza(){
+    numeroStanze++;
+
+    let div = document.createElement("div");
+    div.className = "room";
+
+    div.innerHTML = `
+    <h3>Stanza ${numeroStanze}</h3>
+    <input type="text" class="nomeStanza" placeholder="Nome stanza">
+
+    <h4>Stanza completa</h4>
+    <input type="text" class="lunghezza" placeholder="Lunghezza">
+    <input type="text" class="larghezza" placeholder="Larghezza">
+    <input type="text" class="altezza" placeholder="Altezza">
+
+    <label><input type="checkbox" class="soffitto" checked> Soffitto</label>
+
+    <h4>Pareti singole</h4>
+    <button onclick="aggiungiParete(this)">+ Parete</button>
+    <div class="pareti"></div>
+
+    <h4>Aperture</h4>
+    <input type="text" class="subW" placeholder="Larghezza">
+    <input type="text" class="subH" placeholder="Altezza">
+    <button class="small-btn" onclick="aggiungiSottrazione(this)">Aggiungi apertura</button>
+
+    <div class="listaSottrazioni"></div>
+
+    <div class="risultatoStanza"></div>
+    `;
+
+    document.getElementById("stanze").appendChild(div);
+
+    div.querySelectorAll("input").forEach(i=>{
+        i.addEventListener("input", ()=>calcolaStanza(div));
+    });
+}
+
+function aggiungiParete(btn){
+    let room = btn.closest(".room");
+
+    let wall = document.createElement("div");
+    wall.className = "wall";
+
+    wall.innerHTML = `
+        <input type="text" class="wL" placeholder="Lunghezza">
+        <input type="text" class="wH" placeholder="Altezza">
+        <button onclick="this.parentElement.remove(); calcolaStanza(this.closest('.room'));">❌</button>
+    `;
+
+    room.querySelector(".pareti").appendChild(wall);
+
+    wall.querySelectorAll("input").forEach(i=>{
+        i.addEventListener("input", ()=>calcolaStanza(room));
+    });
+}
+
+function aggiungiSottrazione(btn){
+    let room = btn.closest(".room");
+
+    let w = parseInput(room.querySelector(".subW"));
+    let h = parseInput(room.querySelector(".subH"));
+
+    if(!w || !h) return;
+
+    let area = w*h;
+
+    room.querySelector(".listaSottrazioni").innerHTML +=
+        `<div data-area="${area}">Apertura: ${area.toFixed(2)} m²</div>`;
+
+    calcolaStanza(room);
+}
+
+function calcolaStanza(room){
+
+    let nome = room.querySelector(".nomeStanza").value || "Stanza";
+
+    let lunghezza = parseInput(room.querySelector(".lunghezza"));
+    let larghezza = parseInput(room.querySelector(".larghezza"));
+    let altezza = parseInput(room.querySelector(".altezza"));
+    let soffitto = room.querySelector(".soffitto").checked;
+
+    let totale = 0;
+
+    // stanza completa
+    if(lunghezza && altezza) totale += 2 * lunghezza * altezza;
+    if(larghezza && altezza) totale += 2 * larghezza * altezza;
+    if(soffitto && lunghezza && larghezza) totale += lunghezza * larghezza;
+
+    // pareti singole
+    room.querySelectorAll(".wall").forEach(w=>{
+        let l = parseInput(w.querySelector(".wL"));
+        let h = parseInput(w.querySelector(".wH"));
+        totale += l*h;
+    });
+
+    // sottrazioni
+    room.querySelectorAll(".listaSottrazioni div").forEach(el=>{
+        totale -= parseFloat(el.dataset.area);
+    });
+
+    room.querySelector(".risultatoStanza").innerHTML =
+        `<strong>${nome}: ${totale.toFixed(2)} m²</strong>`;
+
+    room.dataset.totale = totale;
+
+    calcolaTotale();
+}
+
+function calcolaTotale(){
+    let tot = 0;
+    document.querySelectorAll(".room").forEach(r=>{
+        tot += parseFloat(r.dataset.totale || 0);
+    });
+    document.getElementById("totaleGenerale").innerHTML =
+        `<strong>${tot.toFixed(2)} m²</strong>`;
+}
+
+// SALVATAGGIO
+function salvaLavoro(){
+    let nome = document.getElementById("nomeLavoro").value;
+    if(!nome) return alert("Inserisci nome");
+
+    let dati = document.getElementById("stanze").innerHTML;
+    localStorage.setItem(nome, dati);
+
+    aggiornaLista();
+}
+
+function caricaLavoro(){
+    let nome = document.getElementById("listaLavori").value;
+    if(!nome) return;
+
+    document.getElementById("stanze").innerHTML =
+        localStorage.getItem(nome);
+
+    document.querySelectorAll(".room").forEach(r=>{
+        r.querySelectorAll("input").forEach(i=>{
+            i.addEventListener("input", ()=>calcolaStanza(r));
+        });
+    });
+
+    calcolaTotale();
+}
+
+function aggiornaLista(){
+    let sel = document.getElementById("listaLavori");
+    sel.innerHTML="";
+    for(let i=0;i<localStorage.length;i++){
+        let k = localStorage.key(i);
+        sel.innerHTML += `<option>${k}</option>`;
+    }
+}
+
+window.onload = aggiornaLista;
+
+</script>
+
+</body>
+</html>
